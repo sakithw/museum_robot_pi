@@ -22,7 +22,8 @@ import requests
 import time
 
 UDP_PORT   = 7709
-FLASK_URL  = "http://localhost:5000/detect"
+FLASK_URL  = "https://localhost:5000/detect"
+import urllib3; urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 COOLDOWN   = 3.0   # seconds between forwarding same tag
 
 last_sent  = {}    # tag_id → timestamp
@@ -57,7 +58,8 @@ def forward_tag(tag_id: int):
     try:
         r = requests.post(FLASK_URL,
                           json={"tag_id": tag_id},
-                          timeout=1.0)
+                          timeout=1.0,
+                          verify=False)
         print(f"[UDP] Tag {tag_id} → Flask: {r.json().get('status')}")
     except Exception as e:
         print(f"[UDP] Flask forward error: {e}")
