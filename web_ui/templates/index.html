@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Museum Guide Robot</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="museum-title">🏛️ Museum Guide Robot</div>
+  <div class="lang-bar">
+    <button class="lang-btn active" onclick="setLang('en',this)">English</button>
+    <button class="lang-btn"        onclick="setLang('si',this)">සිංහල</button>
+    <button class="lang-btn"        onclick="setLang('ta',this)">தமிழ்</button>
+  </div>
+  <div class="status-badge">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Ready</span>
+  </div>
+</div>
+
+<div class="tabbar">
+  <div class="tab active" onclick="switchTab('exhibit',this)">🏺 Exhibit</div>
+  <div class="tab"        onclick="switchTab('remote',this)">🕹️ Remote</div>
+  <div class="tab"        onclick="switchTab('goals',this)">📍 Nav Goals</div>
+</div>
+
+<div class="body">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-title">Mode</div>
+    <button class="ctrl-btn btn-nav" onclick="setMode('navigation')">🧭 Navigation</button>
+    <button class="ctrl-btn btn-map" onclick="setMode('mapping')">🗺️ Mapping</button>
+    <div class="divider-line"></div>
+    <div class="sidebar-title">Controls</div>
+    <button class="ctrl-btn btn-start" onclick="startRobot()">▶ Start Robot</button>
+    <button class="ctrl-btn btn-stop"  onclick="stopRobot()">■ Stop Robot</button>
+    <button class="ctrl-btn btn-save"  onclick="saveMap()">💾 Save Map</button>
+    <button class="ctrl-btn btn-opt"   onclick="optimizeMap()">✨ Optimize Map</button>
+    <div class="divider-line"></div>
+    <div class="sidebar-title">System</div>
+    <div class="status-box">
+      Mode: <span class="val" id="sysMode">Nav</span><br>
+      Robot: <span class="val" id="sysStatus">Idle</span><br>
+      ROS: <span class="val" id="sysRos">—</span>
+    </div>
+    <div class="sidebar-title">Position</div>
+    <div class="pos-box">
+      X: <span class="val" id="posX">0.000</span><br>
+      Y: <span class="val" id="posY">0.000</span><br>
+      Yaw: <span class="val" id="posYaw">0.0</span>°
+    </div>
+  </div>
+
+  <!-- EXHIBIT PANEL -->
+  <div class="panel active" id="panelExhibit">
+    <div class="idle-screen" id="idleScreen">
+      <div class="idle-icon">🤖</div>
+      <div class="idle-text" id="idleText">Approach an exhibit to begin</div>
+    </div>
+    <div class="mapping-screen" id="mappingScreen">
+      <div class="mapping-pulse">🗺️</div>
+      <div class="mapping-title">Mapping Mode Active</div>
+      <div class="mapping-hint">
+        Use Remote tab to drive.<br>
+        Use Nav Goals tab to mark positions.<br>
+        Click Save Map when done.
+      </div>
+    </div>
+    <div class="exhibit-card" id="exhibitCard">
+      <div class="exhibit-tag"         id="exhibitTag">EXHIBIT</div>
+      <div class="exhibit-name"        id="exhibitName">—</div>
+      <div class="edivider"></div>
+      <div class="exhibit-description" id="exhibitDesc">—</div>
+      <div class="indicator nav-indicator" id="navIndicator">
+        <div class="nav-spinner"></div><span id="navText">Navigating…</span>
+      </div>
+      <div class="indicator speak-indicator" id="speakIndicator">
+        <div class="wave">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <span id="speakText">Describing…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- REMOTE PANEL -->
+  <div class="remote-panel" id="panelRemote">
+    <div class="drive-status" id="driveStatus">🛑 STOPPED</div>
+
+    <div class="dpad">
+      <div class="dpad-empty"></div>
+      <div class="dpad-btn"
+           onpointerdown="startDrive('F')" onpointerup="stopDrive()" onpointerleave="stopDrive()">⬆️</div>
+      <div class="dpad-empty"></div>
+
+      <div class="dpad-btn"
+           onpointerdown="startDrive('L')" onpointerup="stopDrive()" onpointerleave="stopDrive()">⬅️</div>
+      <div class="dpad-btn dpad-center" onpointerdown="stopDrive()">■</div>
+      <div class="dpad-btn"
+           onpointerdown="startDrive('R')" onpointerup="stopDrive()" onpointerleave="stopDrive()">➡️</div>
+
+      <div class="dpad-empty"></div>
+      <div class="dpad-btn"
+           onpointerdown="startDrive('B')" onpointerup="stopDrive()" onpointerleave="stopDrive()">⬇️</div>
+      <div class="dpad-empty"></div>
+    </div>
+
+    <!-- TWO SPEED SLIDERS -->
+    <div class="speed-section">
+      <div class="speed-row">
+        <div class="speed-label">
+          <span><span class="speed-badge badge-travel">⬆️⬇️ Travel</span></span>
+          <span id="travelVal">50%</span>
+        </div>
+        <input type="range" min="10" max="100" value="50" id="travelSlider"
+               oninput="document.getElementById('travelVal').textContent=this.value+'%'">
+      </div>
+      <div class="speed-row">
+        <div class="speed-label">
+          <span><span class="speed-badge badge-turn">⬅️➡️ Turn</span></span>
+          <span id="turnVal">60%</span>
+        </div>
+        <input type="range" min="10" max="100" value="60" id="turnSlider"
+               oninput="document.getElementById('turnVal').textContent=this.value+'%'">
+      </div>
+      <div style="font-size:0.68rem;color:var(--subtext);margin-top:4px;" id="speedNote">
+        Max: <span id="speedNoteVal">0.25 m/s</span>
+      </div>
+    </div>
+
+    <div style="font-size:0.72rem;color:var(--subtext);">
+      Arrow keys · Space = stop
+    </div>
+  </div>
+
+  <!-- NAV GOALS PANEL -->
+  <div class="goals-panel" id="panelGoals">
+    <div class="goals-title">📍 Navigation Goals</div>
+    <div class="goals-hint">
+      Switch to <b>Mapping mode</b>, drive to each exhibit using the Remote tab,
+      park directly in front facing the exhibit, then click <b>Mark Here</b>.
+      Coordinates are saved automatically.
+    </div>
+    <div id="goalsList"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
