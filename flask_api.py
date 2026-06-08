@@ -47,15 +47,33 @@ def odom_poller():
 
 threading.Thread(target=odom_poller, daemon=True).start()
 
+# ── Background: detect if bringup is actually running ────────────────────────
+def ros_watchdog():
+    """Poll for arduino_bridge process to sync ros_running with reality."""
+    while True:
+        alive = bool(subprocess.run(
+            ['pgrep', '-f', 'arduino_bridge'],
+            capture_output=True).returncode == 0)
+        with _lock:
+            if _ros_process and _ros_process.poll() is not None:
+                _state['ros_running'] = False
+            elif alive:
+                _state['ros_running'] = True
+        time.sleep(2)
+
+threading.Thread(target=ros_watchdog, daemon=True).start()
+
 # ── Helper: send cmd_vel via bridge ──────────────────────────────────────────
 def send_cmdvel(lx=0.0, az=0.0):
-    """POST to cmd_vel_bridge running on port 5001."""
-    try:
-        import requests
-        requests.post('http://localhost:5001/cmd',
-                      json={'lx': lx, 'az': az}, timeout=0.3)
-    except Exception as e:
-        print(f"[Drive] cmd_vel_bridge error: {e}")
+    """POST to cmd_vel_bridge. Try port 5002 (bringup) first, fall back to 5001 (service)."""
+    import requests
+    for port in [5002, 5001]:
+        try:
+            requests.post(f'http://localhost:{port}/cmd',
+                          json={'lx': lx, 'az': az}, timeout=0.2)
+            return
+        except Exception:
+            continue
 
 # ── ROUTES ────────────────────────────────────────────────────────────────────
 
@@ -291,151 +309,109 @@ _SCANNER_HTML = r"""<!DOCTYPE html>
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta charset="UTF-8">
-<title>Museum Tag Scanner</title>
+<title>Museum Scanner</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;min-height:100vh;background:#0a0a14;color:#fff;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:24px 20px;gap:0}
-h1{font-size:1.1rem;font-weight:700;letter-spacing:.04em;color:#b0b8ff;
-   text-transform:uppercase;margin-bottom:6px}
-p.sub{font-size:.8rem;color:#555;margin-bottom:32px}
-
-/* scan button */
-#scanBtn{
-  width:200px;height:200px;border-radius:50%;
-  background:radial-gradient(circle at 40% 35%,#3a3aff,#1a1a6e);
-  border:4px solid #4444ff;box-shadow:0 0 40px #3333ff55;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  cursor:pointer;transition:transform .15s,box-shadow .15s;
-  -webkit-tap-highlight-color:transparent;user-select:none;position:relative}
-#scanBtn:active{transform:scale(.94);box-shadow:0 0 20px #3333ff33}
-#scanBtn.scanning{border-color:#00e676;box-shadow:0 0 40px #00e67644;
-  animation:pulse 1s ease-in-out infinite}
-#scanBtn.hit{border-color:#00e676;background:radial-gradient(circle at 40% 35%,#00c853,#005c24);
-  box-shadow:0 0 60px #00e67688;animation:none}
-@keyframes pulse{0%,100%{box-shadow:0 0 30px #00e67644}50%{box-shadow:0 0 60px #00e67699}}
-#btnIcon{font-size:56px;line-height:1;margin-bottom:6px}
-#btnLabel{font-size:.82rem;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:.06em;text-transform:uppercase}
-#fileIn{display:none}
-
-/* status */
-#result{margin-top:32px;min-height:72px;text-align:center}
-#tagname{font-size:1.3rem;font-weight:700;color:#00e676;
-  text-shadow:0 0 16px #00e676;letter-spacing:.02em;margin-bottom:6px}
-#statusMsg{font-size:.9rem;color:rgba(255,255,255,.6)}
-
-/* spinner ring inside button while uploading */
-#ring{position:absolute;inset:-4px;border-radius:50%;
-  border:4px solid transparent;border-top-color:#00e676;
-  display:none;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-#scanBtn.scanning #ring{display:block}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#fff}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#overlay{position:absolute;inset:0;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center}
+#box{width:220px;height:220px;border:3px solid rgba(255,255,255,.4);border-radius:20px;
+  position:relative;transition:border-color .25s,box-shadow .25s}
+#box.hit{border-color:#00e676;box-shadow:0 0 40px #00e67688}
+#scanline{position:absolute;left:8px;right:8px;height:2px;
+  background:linear-gradient(90deg,transparent,#00e676,transparent);
+  top:0;animation:sweep 1.8s ease-in-out infinite}
+@keyframes sweep{0%{top:4px;opacity:1}100%{top:calc(100% - 6px);opacity:.3}}
+#box.hit #scanline{display:none}
+#tick{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-size:64px;opacity:0;transition:opacity .2s}
+#box.hit #tick{opacity:1}
+#topbar{position:absolute;top:0;left:0;right:0;padding:14px 16px 20px;
+  background:linear-gradient(180deg,rgba(0,0,0,.7),transparent);
+  font-size:.9rem;font-weight:600;text-align:center;letter-spacing:.03em}
+#label{position:absolute;bottom:110px;left:0;right:0;text-align:center;
+  font-size:1.2rem;font-weight:700;color:#00e676;
+  text-shadow:0 0 14px #00e676;min-height:1.5em}
+#status{position:absolute;bottom:52px;left:0;right:0;text-align:center;
+  font-size:.85rem;color:rgba(255,255,255,.65);text-shadow:0 1px 4px #000}
+#dot{display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:#555;margin-right:6px;vertical-align:middle;transition:background .3s}
+#dot.active{background:#00e676;box-shadow:0 0 6px #00e676}
 </style>
 </head>
 <body>
-<h1>Museum Guide</h1>
-<p class="sub">Tap to scan an exhibit tag</p>
-
-<div id="scanBtn" onclick="triggerScan()">
-  <div id="ring"></div>
-  <div id="btnIcon">📷</div>
-  <div id="btnLabel">Scan Tag</div>
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas" style="display:none"></canvas>
+<div id="overlay">
+  <div id="box"><div id="scanline"></div><div id="tick">✓</div></div>
 </div>
-<input id="fileIn" type="file" accept="image/*" capture="environment">
-
-<div id="result">
-  <div id="tagname"></div>
-  <div id="statusMsg">Point your camera at the exhibit's AprilTag</div>
-</div>
+<div id="topbar">Museum Guide — Auto Scanner</div>
+<div id="label"></div>
+<div id="status"><span id="dot"></span><span id="statusTxt">Starting camera…</span></div>
 
 <script>
-const btn       = document.getElementById('scanBtn');
-const fileIn    = document.getElementById('fileIn');
-const tagnameEl = document.getElementById('tagname');
-const statusEl  = document.getElementById('statusMsg');
-const btnIcon   = document.getElementById('btnIcon');
-const canvas    = document.createElement('canvas');
-const ctx       = canvas.getContext('2d');
+const video  = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+const box    = document.getElementById('box');
+const label  = document.getElementById('label');
+const dot    = document.getElementById('dot');
+const stxt   = document.getElementById('statusTxt');
 
-let busy = false;
-let cooldownUntil = 0;
+canvas.width = 640; canvas.height = 480;
 
-function triggerScan(){
-  if(busy || Date.now() < cooldownUntil) return;
-  fileIn.click();
-}
+let busy = false, cooldownUntil = 0;
 
-fileIn.addEventListener('change', ()=>{
-  const file = fileIn.files[0];
-  fileIn.value = '';
-  if(!file || busy) return;
-  uploadImage(file);
+function setStatus(msg, live){ stxt.textContent=msg; dot.className=live?'active':''; }
+
+navigator.mediaDevices.getUserMedia({
+  video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}
+}).then(stream=>{
+  video.srcObject = stream;
+  video.addEventListener('loadedmetadata', ()=>{
+    setStatus('Scanning…', true);
+    setInterval(doScan, 700);
+  });
+}).catch(err=>{
+  setStatus('Camera error: '+err.message, false);
 });
 
-function uploadImage(file){
+function doScan(){
+  if(busy || Date.now() < cooldownUntil) return;
   busy = true;
-  btn.classList.add('scanning');
-  btnIcon.textContent = '⏳';
-  statusEl.textContent = 'Analysing…';
-  tagnameEl.textContent = '';
-
-  // Resize to 800px wide before upload to reduce payload
-  const img = new Image();
-  img.onload = ()=>{
-    const scale = Math.min(1, 800 / img.width);
-    canvas.width  = Math.round(img.width  * scale);
-    canvas.height = Math.round(img.height * scale);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(blob=>{
-      fetch('/scan_image',{
-        method:'POST', body:blob,
-        headers:{'Content-Type':'image/jpeg'}
-      })
-      .then(r=>r.json())
-      .then(handleResult)
-      .catch(()=>{ setError('Network error — try again'); });
-    },'image/jpeg', 0.88);
-  };
-  img.src = URL.createObjectURL(file);
-}
-
-function handleResult(d){
-  busy = false;
-  btn.classList.remove('scanning');
-  btnIcon.textContent = '📷';
-  if(d.detected && d.status==='accepted'){
-    onHit(d.tag_id, d.exhibit_name);
-  } else if(d.detected && d.status==='busy'){
-    setInfo('Robot is busy — please wait a moment');
-  } else if(d.detected && d.status==='cooldown'){
-    setInfo('Just visited — try another exhibit');
-  } else if(d.detected && d.status==='not_in_navigation_mode'){
-    setInfo('Robot is in mapping mode');
-  } else if(d.unknown_tag !== undefined){
-    setError('Unknown tag ID: '+d.unknown_tag);
-  } else {
-    setError('No tag found — try again, closer & steadier');
-  }
+  ctx.drawImage(video, 0, 0, 640, 480);
+  canvas.toBlob(blob=>{
+    if(!blob){ busy=false; return; }
+    fetch('/scan_image',{method:'POST',body:blob,
+      headers:{'Content-Type':'image/jpeg'}})
+    .then(r=>r.json())
+    .then(d=>{
+      busy = false;
+      if(d.detected && d.status==='accepted'){
+        onHit(d.tag_id, d.exhibit_name);
+      } else if(d.detected && d.status==='busy'){
+        setStatus('Robot busy — waiting…', true);
+      } else if(d.detected && d.status==='cooldown'){
+        setStatus('Scanning…', true);
+      }
+    })
+    .catch(()=>{ busy=false; });
+  },'image/jpeg',0.82);
 }
 
 function onHit(tagId, name){
-  btn.classList.add('hit');
-  btnIcon.textContent = '✓';
-  tagnameEl.textContent = name || ('Exhibit '+tagId);
-  statusEl.textContent = 'Robot is on its way!';
+  box.classList.add('hit');
+  label.textContent = name||('Exhibit '+tagId);
+  setStatus('On the way!', true);
   cooldownUntil = Date.now() + 14000;
   setTimeout(()=>{
-    btn.classList.remove('hit');
-    btnIcon.textContent = '📷';
-    tagnameEl.textContent = '';
-    statusEl.textContent = 'Point your camera at the exhibit\'s AprilTag';
-  }, 5000);
+    box.classList.remove('hit');
+    label.textContent = '';
+    setStatus('Scanning…', true);
+  }, 4000);
 }
-
-function setError(msg){ tagnameEl.textContent=''; statusEl.textContent='⚠ '+msg; }
-function setInfo(msg) { tagnameEl.textContent=''; statusEl.textContent=msg; }
 </script>
 </body>
 </html>"""
@@ -494,7 +470,14 @@ def scan_image():
 
 
 if __name__ == '__main__':
+    import os as _os
+    _base = _os.path.dirname(_os.path.abspath(__file__))
+    _cert = _os.path.join(_base, 'cert.pem')
+    _key  = _os.path.join(_base, 'key.pem')
+    _ssl  = (_cert, _key) if _os.path.exists(_cert) else None
+    _proto = 'https' if _ssl else 'http'
     print("=" * 50)
-    print("Museum Robot Flask API — http://0.0.0.0:5000")
+    print(f"Museum Robot Flask API — {_proto}://0.0.0.0:5000")
     print("=" * 50)
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True,
+            ssl_context=_ssl)

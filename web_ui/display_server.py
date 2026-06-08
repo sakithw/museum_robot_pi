@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from flask import Flask, render_template, request, jsonify
-import requests
+import requests, urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
-API = "http://localhost:5000"
+API = "https://localhost:5000"
 
 @app.route('/')
 def index():
@@ -15,13 +16,13 @@ def proxy(path):
         if request.method == 'POST':
             r = requests.post(f"{API}/{path}",
                             json=request.get_json(silent=True),
-                            timeout=2.0)
+                            timeout=2.0, verify=False)
         else:
-            r = requests.get(f"{API}/{path}", timeout=2.0)
+            r = requests.get(f"{API}/{path}", timeout=2.0, verify=False)
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    print("Display server on http://localhost:8080")
+    print("Display server on http://0.0.0.0:8080")
     app.run(host='0.0.0.0', port=8080, debug=False)
