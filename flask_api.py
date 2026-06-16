@@ -239,20 +239,22 @@ def start_ros():
 @app.route('/stop', methods=['POST'])
 def stop_ros():
     global _ros_process, _stop_time
-    send_cmdvel(0.0, 0.0)   # stop motors first
-    if _ros_process:
-        _ros_process.terminate()
-        _ros_process = None
-    subprocess.Popen(['bash', '-c',
-        'sleep 0.5 && '
-        'pkill -f async_slam_toolbox_node; '
-        'pkill -f sllidar_node; '
-        'pkill -f arduino_bridge; '
-        'pkill -f scan_filter'])
+    send_cmdvel(0.0, 0.0)
+    _ros_process = None
+    subprocess.run(['bash', '-c',
+        'pkill -9 -f "ros2 launch"; '
+        'pkill -9 -f arduino_bridge; '
+        'pkill -9 -f sllidar_node; '
+        'pkill -9 -f async_slam_toolbox_node; '
+        'pkill -9 -f scan_filter; '
+        'pkill -9 -f bt_navigator; '
+        'pkill -9 -f controller_server; '
+        'pkill -9 -f planner_server; '
+        'pkill -9 -f amcl; '
+        'pkill -9 -f map_server'])
     with _lock:
-        _state['ros_running']  = False
+        _state['ros_running'] = False
         _state['robot_status'] = 'idle'
-    global _stop_time
     _stop_time = time.time()
     return jsonify({"message": "Stopped"})
 
