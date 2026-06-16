@@ -34,6 +34,7 @@ _state = {
 }
 _lock        = threading.Lock()
 _ros_process = None
+_stop_time   = 0.0
 
 from collections import deque
 _log_lines = deque(maxlen=200)
@@ -88,7 +89,9 @@ def ros_watchdog():
             ['pgrep', '-f', 'arduino_bridge'],
             capture_output=True).returncode == 0)
         with _lock:
-            if _ros_process and _ros_process.poll() is not None:
+            if time.time() - _stop_time < 5.0:
+                _state['ros_running'] = False
+            elif _ros_process and _ros_process.poll() is not None:
                 _state['ros_running'] = False
             elif alive:
                 _state['ros_running'] = True
@@ -235,7 +238,7 @@ def start_ros():
 
 @app.route('/stop', methods=['POST'])
 def stop_ros():
-    global _ros_process
+    global _ros_process, _stop_time
     send_cmdvel(0.0, 0.0)   # stop motors first
     if _ros_process:
         _ros_process.terminate()
@@ -249,6 +252,8 @@ def stop_ros():
     with _lock:
         _state['ros_running']  = False
         _state['robot_status'] = 'idle'
+    global _stop_time
+    _stop_time = time.time()
     return jsonify({"message": "Stopped"})
 
 
