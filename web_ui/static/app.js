@@ -233,3 +233,29 @@ async function pollStatus(){
 setInterval(pollStatus, 1000);
 pollStatus();
 renderGoals();
+
+// ── Launch Log ─────────────────────────────────────────────────────
+let logVisible = false;
+let lastLogCount = 0;
+
+function toggleLog(){
+  logVisible = !logVisible;
+  document.getElementById('logPanel').style.display = logVisible ? 'flex' : 'none';
+  document.getElementById('logToggleBtn').textContent = logVisible ? '✕ Hide Log' : '📡 Show Log';
+}
+
+async function pollLog(){
+  if(!logVisible) return;
+  try{
+    const data = await (await fetch('/launch_log')).json();
+    const lines = data.lines || [];
+    if(lines.length !== lastLogCount){
+      lastLogCount = lines.length;
+      const el = document.getElementById('logOutput');
+      el.textContent = lines.join('\n');
+      el.scrollTop = el.scrollHeight;
+    }
+  } catch(e){}
+}
+
+setInterval(pollLog, 2000);

@@ -5,12 +5,19 @@ All drive commands go via /cmd_vel through cmd_vel_bridge (port 5001)
 arduino_bridge owns serial exclusively — no conflicts.
 """
 
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, render_template
 import threading, subprocess, time, os
 
-app = Flask(__name__)
+_web_ui_dir = os.path.join(os.path.dirname(__file__), 'web_ui')
+app = Flask(__name__,
+            template_folder=os.path.join(_web_ui_dir, 'templates'),
+            static_folder=os.path.join(_web_ui_dir, 'static'))
 
 from exhibits import EXHIBITS
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 _state = {
     "pending_tag":    None,
