@@ -28,6 +28,32 @@ _state = {
 _lock        = threading.Lock()
 _ros_process = None
 
+from collections import deque
+_log_lines = deque(maxlen=200)
+_log_lock  = threading.Lock()
+
+def _stream_process_output(proc):
+    """Read stdout+stderr from proc and store in _log_lines."""
+    import selectors
+    sel = selectors.DefaultSelector()
+    sel.register(proc.stdout, selectors.EVENT_READ)
+    sel.register(proc.stderr, selectors.EVENT_READ)
+    while True:
+        events = sel.select(timeout=1.0)
+        if not events:
+            if proc.poll() is not None:
+                break
+            continue
+        for key, _ in events:
+            line = key.fileobj.readline()
+            if line:
+                text = line.decode('utf-8', errors='replace').rstrip()
+                with _log_lock:
+                    _log_lines.append(text)
+        if proc.poll() is not None:
+            break
+    sel.close()
+
 # ── Background: poll /odom from ROS ──────────────────────────────────────────
 def odom_poller():
     """Read position from file written by odom_relay.py node."""
@@ -181,12 +207,18 @@ def start_ros():
     extra  = f'map:={os.path.expanduser("~/maps/museum_map.yaml")}' \
              if mode == 'navigation' else ''
     cmd = (f'source /opt/ros/humble/setup.bash && '
-           f'source ~/ros2_ws/install/setup.bash && '
+           f'source ~/new_ros2/install/setup.bash && '
            f'export ROS_DOMAIN_ID=10 && '
            f'ros2 launch museum_robot {launch} {extra}')
-    _ros_process = subprocess.Popen(['bash', '-c', cmd],
-                                    stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL)
+    with _log_lock:
+        _log_lines.clear()
+        _log_lines.append(f'[webapp] Starting {launch}...')
+    _ros_process = subprocess.Popen(
+        ['bash', '-c', cmd],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
+    threading.Thread(target=_stream_process_output,
+                     args=(_ros_process,), daemon=True).start()
     with _lock:
         _state['ros_running'] = True
     return jsonify({"message": f"Started in {mode} mode"})
@@ -211,10 +243,17 @@ def stop_ros():
     return jsonify({"message": "Stopped"})
 
 
+@app.route('/launch_log')
+def launch_log():
+    with _log_lock:
+        lines = list(_log_lines)[-100:]
+    return jsonify({"lines": lines})
+
+
 @app.route('/save_map', methods=['POST'])
 def save_map():
     cmd = ('source /opt/ros/humble/setup.bash && '
-           'source ~/ros2_ws/install/setup.bash && '
+           'source ~/new_ros2/install/setup.bash && '
            'export ROS_DOMAIN_ID=10 && mkdir -p ~/maps && '
            'ros2 service call /slam_toolbox/serialize_map '
            'slam_toolbox/srv/SerializePoseGraph '
@@ -278,7 +317,7 @@ def _save_nav_goals():
 def optimize_map():
     """Trigger slam_toolbox pose graph optimization to improve map quality."""
     cmd = ('source /opt/ros/humble/setup.bash && '
-           'source ~/ros2_ws/install/setup.bash && '
+           'source ~/new_ros2/install/setup.bash && '
            'export ROS_DOMAIN_ID=10 && '
            'ros2 service call /slam_toolbox/optimize_poses '
            'slam_toolbox/srv/TriggerService')
