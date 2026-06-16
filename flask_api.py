@@ -92,6 +92,8 @@ def ros_watchdog():
                 _state['ros_running'] = False
             elif alive:
                 _state['ros_running'] = True
+            else:
+                _state['ros_running'] = False
         time.sleep(2)
 
 threading.Thread(target=ros_watchdog, daemon=True).start()
