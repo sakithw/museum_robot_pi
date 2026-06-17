@@ -267,12 +267,17 @@ setInterval(pollLog, 2000);
 // ── Terminal Tab ───────────────────────────────────────────────────────────
 async function launchBringupInTerminal(){
   const out = document.getElementById('terminalOutput');
-  out.textContent += '\n$ Launching bringup (background)...\n';
+  out.textContent += '\n$ Setting mode to mapping and starting bringup...\n';
   out.scrollTop = out.scrollHeight;
   try{
-    const r = await fetch('/launch_bringup', {method:'POST'});
+    await fetch('/mode', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({mode:'mapping'})
+    });
+    const r = await fetch('/start', {method:'POST'});
     const d = await r.json();
-    out.textContent += (d.status || 'started') + ' - check Show Log panel for live output\n';
+    out.textContent += (d.message || 'started') + ' - check Show Log panel for live output\n';
   } catch(e){
     out.textContent += 'Error: ' + e.message + '\n';
   }
@@ -281,12 +286,17 @@ async function launchBringupInTerminal(){
 
 async function launchNavInTerminal(){
   const out = document.getElementById('terminalOutput');
-  out.textContent += '\n$ Launching navigation (background)...\n';
+  out.textContent += '\n$ Setting mode to navigation and starting...\n';
   out.scrollTop = out.scrollHeight;
   try{
-    const r = await fetch('/launch_navigation', {method:'POST'});
+    await fetch('/mode', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({mode:'navigation'})
+    });
+    const r = await fetch('/start', {method:'POST'});
     const d = await r.json();
-    out.textContent += (d.status || 'started') + ' - check Show Log panel for live output\n';
+    out.textContent += (d.message || 'started') + ' - check Show Log panel for live output\n';
   } catch(e){
     out.textContent += 'Error: ' + e.message + '\n';
   }
