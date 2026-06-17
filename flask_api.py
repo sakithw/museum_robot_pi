@@ -386,6 +386,58 @@ def _save_nav_goals():
     print(f"[API] nav_goals.py updated")
 
 
+@app.route('/list_goals')
+def list_goals():
+    goals = {}
+    for tid, ex in EXHIBITS.items():
+        goals[tid] = {
+            "name": ex['name']['en'],
+            "nav_goal": ex.get('nav_goal')
+        }
+    return jsonify({"goals": goals})
+
+
+_nav_target_lock = threading.Lock()
+_nav_target = {"tag_id": None, "status": "idle"}
+
+def _run_nav_goal(tag_id, x, y, yaw):
+    import math, subprocess as sp
+    qz = math.sin(yaw / 2.0)
+    qw = math.cos(yaw / 2.0)
+    cmd = (
+        'source /opt/ros/humble/setup.bash && '
+        'source ~/new_ros2/install/setup.bash && '
+        'export ROS_DOMAIN_ID=10 && '
+        f'ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose '
+        f'"{{pose: {{header: {{frame_id: \'map\'}}, pose: {{position: {{x: {x}, y: {y}, z: 0.0}}, '
+        f'orientation: {{z: {qz}, w: {qw}}}}}}}}}"'
+    )
+    with _nav_target_lock:
+        _nav_target["tag_id"] = tag_id
+        _nav_target["status"] = "navigating"
+    result = sp.run(['bash', '-c', cmd], capture_output=True, text=True, timeout=120)
+    with _nav_target_lock:
+        _nav_target["status"] = "reached" if "Goal finished" in result.stdout else "failed"
+
+@app.route('/navigate_to/<int:tag_id>', methods=['POST'])
+def navigate_to(tag_id):
+    if tag_id not in EXHIBITS:
+        return jsonify({"error": "Unknown tag"}), 404
+    goal = EXHIBITS[tag_id].get('nav_goal')
+    if not goal:
+        return jsonify({"error": "No saved goal for this exhibit"}), 400
+    threading.Thread(target=_run_nav_goal,
+                     args=(tag_id, goal['x'], goal['y'], goal['yaw']),
+                     daemon=True).start()
+    return jsonify({"status": "navigating", "tag_id": tag_id})
+
+
+@app.route('/nav_status')
+def nav_status():
+    with _nav_target_lock:
+        return jsonify(dict(_nav_target))
+
+
 @app.route('/optimize_map', methods=['POST'])
 def optimize_map():
     """Trigger slam_toolbox pose graph optimization to improve map quality."""
