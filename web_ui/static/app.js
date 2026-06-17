@@ -154,6 +154,20 @@ document.addEventListener('keyup', e=>{
 
 // ── Nav Goals ──────────────────────────────────────────────────────────────
 let savedGoals = {};
+let sequenceActive = false;
+let sequenceOrder = [1,2,3,4,5];
+let sequenceIndex = 0;
+
+async function loadGoals(){
+  try{
+    const d = await (await fetch('/list_goals')).json();
+    savedGoals = {};
+    for(const tid in d.goals){
+      if(d.goals[tid].nav_goal) savedGoals[tid] = d.goals[tid].nav_goal;
+    }
+  } catch(e){}
+  renderGoals();
+}
 
 function renderGoals(){
   const list = document.getElementById('goalsList');
@@ -172,8 +186,58 @@ function renderGoals(){
         <button class="mark-btn ${g?'saved':''}" onclick="markGoal(${i})">
           ${g ? '✅ Update' : '📍 Mark Here'}
         </button>
+        ${g ? `<button class="mark-btn" onclick="goToExhibit(${i})">▶ Go</button>` : ''}
       </div>`;
   }
+}
+
+async function goToExhibit(tid){
+  sequenceActive = false;
+  document.getElementById('nextBtn')?.classList.add('hidden-btn');
+  await fetch('/navigate_to/'+tid, {method:'POST'});
+  pollNavStatus();
+}
+
+async function startSequence(){
+  sequenceActive = true;
+  sequenceIndex = 0;
+  await goToSequenceStep();
+}
+
+async function goToSequenceStep(){
+  if(sequenceIndex >= sequenceOrder.length){
+    sequenceActive = false;
+    document.getElementById('nextBtn')?.classList.add('hidden-btn');
+    return;
+  }
+  const tid = sequenceOrder[sequenceIndex];
+  if(!savedGoals[tid]){ sequenceIndex++; return goToSequenceStep(); }
+  await fetch('/navigate_to/'+tid, {method:'POST'});
+  pollNavStatus();
+}
+
+async function nextInSequence(){
+  if(!sequenceActive) return;
+  sequenceIndex++;
+  await goToSequenceStep();
+}
+
+async function pollNavStatus(){
+  const check = async () => {
+    try{
+      const d = await (await fetch('/nav_status')).json();
+      const el = document.getElementById('navStatusText');
+      if(el) el.textContent = d.status==='navigating' ? `Navigating to exhibit ${d.tag_id}...` :
+                               d.status==='reached' ? `Reached exhibit ${d.tag_id}` :
+                               d.status==='failed' ? `Failed to reach exhibit ${d.tag_id}` : 'Idle';
+      if(d.status==='reached' && sequenceActive){
+        document.getElementById('nextBtn')?.classList.remove('hidden-btn');
+        return;
+      }
+      if(d.status==='navigating') setTimeout(check, 2000);
+    } catch(e){}
+  };
+  check();
 }
 
 async function markGoal(tagId){
@@ -235,6 +299,7 @@ async function pollStatus(){
 
 setInterval(pollStatus, 1000);
 pollStatus();
+loadGoals();
 setMode('navigation');
 renderGoals();
 

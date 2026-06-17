@@ -145,6 +145,11 @@
       park directly in front facing the exhibit, then click <b>Mark Here</b>.
       Coordinates are saved automatically.
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button class="mark-btn" onclick="startSequence()">▶▶ Go One By One</button>
+      <button class="mark-btn hidden-btn" id="nextBtn" onclick="nextInSequence()">⏭ Next</button>
+    </div>
+    <div id="navStatusText" style="font-size:0.85rem;color:var(--subtext);margin-bottom:10px;">Idle</div>
     <div id="goalsList"></div>
   </div>
 

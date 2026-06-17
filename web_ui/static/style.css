@@ -143,3 +143,4 @@ input[type=range]#turnSlider{accent-color:#c084fc;}
   opacity: 1 !important;
   font-weight: 700;
 }
+.hidden-btn{display:none !important;}
