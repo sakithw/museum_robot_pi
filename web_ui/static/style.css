@@ -137,3 +137,9 @@ input[type=range]#turnSlider{accent-color:#c084fc;}
   background:#1a1a3a;border:1px solid var(--border);color:var(--text);
   font-size:0.8rem;opacity:0;transition:opacity 0.3s;z-index:999;pointer-events:none;}
 .toast.show{opacity:1;}
+
+.mode-active {
+  box-shadow: 0 0 0 3px #fff, 0 0 10px 4px rgba(255,255,255,0.4);
+  opacity: 1 !important;
+  font-weight: 700;
+}

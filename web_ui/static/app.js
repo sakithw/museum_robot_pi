@@ -66,6 +66,8 @@ function setMode(mode){
   }
   fetch('/mode',{method:'POST',
     headers:{'Content-Type':'application/json'},body:JSON.stringify({mode})});
+  document.getElementById('btnNavMode').classList.toggle('mode-active', mode==='navigation');
+  document.getElementById('btnMapMode').classList.toggle('mode-active', mode==='mapping');
 }
 
 // ── Robot controls ─────────────────────────────────────────────────────────
@@ -76,9 +78,9 @@ async function startRobot(){
   toast(d.message||'Started','#10b981');
 }
 async function stopRobot(){
-  stopDrive();
   toast('Stopping…','#ef4444');
   await fetch('/stop',{method:'POST'});
+  stopDrive();
   toast('Stopped','#ef4444');
 }
 async function saveMap(){
@@ -232,6 +234,7 @@ async function pollStatus(){
 
 setInterval(pollStatus, 1000);
 pollStatus();
+setMode('navigation');
 renderGoals();
 
 // ── Launch Log ─────────────────────────────────────────────────────
