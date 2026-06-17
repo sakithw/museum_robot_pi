@@ -266,6 +266,30 @@ def launch_log():
     return jsonify({"lines": lines})
 
 
+@app.route('/run_command', methods=['POST'])
+def run_command():
+    data = request.get_json(silent=True) or {}
+    cmd = data.get('cmd', '').strip()
+    if not cmd:
+        return jsonify({"error": "Empty command"}), 400
+    full_cmd = (
+        'source /opt/ros/humble/setup.bash && '
+        'source ~/new_ros2/install/setup.bash && '
+        'export ROS_DOMAIN_ID=10 && ' + cmd
+    )
+    try:
+        result = subprocess.run(
+            ['bash', '-c', full_cmd],
+            capture_output=True, text=True, timeout=15
+        )
+        output = (result.stdout or '') + (result.stderr or '')
+        return jsonify({"output": output[-4000:]})
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Command timed out after 15s"}), 408
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/save_map', methods=['POST'])
 def save_map():
     cmd = ('source /opt/ros/humble/setup.bash && '
