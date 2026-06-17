@@ -321,10 +321,14 @@ function switchLogTab(tab){
   renderActiveLog();
 }
 
+let lastRosLines = [];
+
 function renderActiveLog(){
   const el = document.getElementById('logOutput');
   if(activeLogTab === 'nav'){
     el.textContent = navLogLines.join('\n');
+  } else {
+    el.textContent = lastRosLines.join('\n');
   }
   el.scrollTop = el.scrollHeight;
 }
@@ -351,6 +355,7 @@ async function pollLog(){
     const lines = data.lines || [];
     if(lines.length !== lastLogCount){
       lastLogCount = lines.length;
+      lastRosLines = lines;
       if(activeLogTab === 'ros'){
         const el = document.getElementById('logOutput');
         el.textContent = lines.join('\n');
