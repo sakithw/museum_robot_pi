@@ -151,8 +151,8 @@
   <!-- TERMINAL PANEL -->
   <div class="goals-panel" id="panelTerminal">
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button onclick="quickCmd('ros2 launch museum_robot bringup.launch.py')">🗺️ Start Mapping</button>
-      <button onclick="quickCmd('ros2 launch museum_robot navigation.launch.py')">🧭 Start Navigation</button>
+      <button onclick="launchBringupInTerminal()">🗺️ Start Mapping</button>
+      <button onclick="launchNavInTerminal()">🧭 Start Navigation</button>
       <button onclick="quickCmd('pkill -9 -f arduino_bridge; pkill -9 -f sllidar_node; pkill -9 -f async_slam_toolbox_node; pkill -9 -f scan_filter; pkill -9 -f bt_navigator; pkill -9 -f controller_server; pkill -9 -f planner_server; pkill -9 -f amcl; pkill -9 -f map_server; pkill -9 -f smoother_server; pkill -9 -f behavior_server; pkill -9 -f waypoint_follower; pkill -9 -f velocity_smoother; echo done')">🔴 Kill All ROS</button>
       <button onclick="quickCmd('python3 ~/new_ros2/src/museum_robot/scripts/reset_lidar.py; echo done')">🔄 Reset LiDAR</button>
       <button onclick="quickCmd('ros2 topic list')">📋 ROS Topic List</button>
