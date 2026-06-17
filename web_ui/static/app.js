@@ -195,6 +195,7 @@ async function goToExhibit(tid){
   sequenceActive = false;
   document.getElementById('nextBtn')?.classList.add('hidden-btn');
   await fetch('/navigate_to/'+tid, {method:'POST'});
+  addNavLog(`Sent goal: navigate to exhibit ${tid}`);
   pollNavStatus();
 }
 
@@ -213,6 +214,7 @@ async function goToSequenceStep(){
   const tid = sequenceOrder[sequenceIndex];
   if(!savedGoals[tid]){ sequenceIndex++; return goToSequenceStep(); }
   await fetch('/navigate_to/'+tid, {method:'POST'});
+  addNavLog(`Sequence step ${sequenceIndex+1}/${sequenceOrder.length}: navigating to exhibit ${tid}`);
   pollNavStatus();
 }
 
@@ -230,6 +232,8 @@ async function pollNavStatus(){
       if(el) el.textContent = d.status==='navigating' ? `Navigating to exhibit ${d.tag_id}...` :
                                d.status==='reached' ? `Reached exhibit ${d.tag_id}` :
                                d.status==='failed' ? `Failed to reach exhibit ${d.tag_id}` : 'Idle';
+      if(d.status==='reached') addNavLog(`Reached exhibit ${d.tag_id}`);
+      if(d.status==='failed') addNavLog(`FAILED to reach exhibit ${d.tag_id}`);
       if(d.status==='reached' && sequenceActive){
         document.getElementById('nextBtn')?.classList.remove('hidden-btn');
         return;
@@ -305,6 +309,33 @@ renderGoals();
 
 // ── Launch Log ─────────────────────────────────────────────────────
 let logVisible = false;
+let activeLogTab = 'ros';
+let navLogLines = [];
+
+function switchLogTab(tab){
+  activeLogTab = tab;
+  document.getElementById('logTabRos').style.background = tab==='ros' ? '#1f2937' : 'none';
+  document.getElementById('logTabRos').style.color = tab==='ros' ? '#58a6ff' : '#8b949e';
+  document.getElementById('logTabNav').style.background = tab==='nav' ? '#1f2937' : 'none';
+  document.getElementById('logTabNav').style.color = tab==='nav' ? '#58a6ff' : '#8b949e';
+  renderActiveLog();
+}
+
+function renderActiveLog(){
+  const el = document.getElementById('logOutput');
+  if(activeLogTab === 'nav'){
+    el.textContent = navLogLines.join('\n');
+  }
+  el.scrollTop = el.scrollHeight;
+}
+
+function addNavLog(line){
+  const ts = new Date().toLocaleTimeString();
+  navLogLines.push(`[${ts}] ${line}`);
+  if(navLogLines.length > 200) navLogLines.shift();
+  if(activeLogTab === 'nav') renderActiveLog();
+}
+
 let lastLogCount = 0;
 
 function toggleLog(){
@@ -320,9 +351,11 @@ async function pollLog(){
     const lines = data.lines || [];
     if(lines.length !== lastLogCount){
       lastLogCount = lines.length;
-      const el = document.getElementById('logOutput');
-      el.textContent = lines.join('\n');
-      el.scrollTop = el.scrollHeight;
+      if(activeLogTab === 'ros'){
+        const el = document.getElementById('logOutput');
+        el.textContent = lines.join('\n');
+        el.scrollTop = el.scrollHeight;
+      }
     }
   } catch(e){}
 }
