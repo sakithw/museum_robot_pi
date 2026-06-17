@@ -303,6 +303,20 @@ async function launchNavInTerminal(){
   out.scrollTop = out.scrollHeight;
 }
 
+async function stopGracefulInTerminal(){
+  const out = document.getElementById('terminalOutput');
+  out.textContent += '\n$ Sending Ctrl+C (SIGINT) to stop gracefully...\n';
+  out.scrollTop = out.scrollHeight;
+  try{
+    const r = await fetch('/stop_graceful', {method:'POST'});
+    const d = await r.json();
+    out.textContent += (d.message || 'stopped') + '\n';
+  } catch(e){
+    out.textContent += 'Error: ' + e.message + '\n';
+  }
+  out.scrollTop = out.scrollHeight;
+}
+
 async function quickCmd(cmd){ await runCmd(cmd); }
 async function runTypedCmd(){
   const input = document.getElementById('cmdInput');
