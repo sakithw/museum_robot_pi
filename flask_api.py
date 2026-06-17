@@ -228,7 +228,8 @@ def start_ros():
     _ros_process = subprocess.Popen(
         ['bash', '-c', cmd],
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
+        stderr=subprocess.PIPE,
+        start_new_session=True)
     threading.Thread(target=_stream_process_output,
                      args=(_ros_process,), daemon=True).start()
     with _lock:
@@ -257,6 +258,38 @@ def stop_ros():
         _state['robot_status'] = 'idle'
     _stop_time = time.time()
     return jsonify({"message": "Stopped"})
+
+
+@app.route('/stop_graceful', methods=['POST'])
+def stop_graceful():
+    global _ros_process
+    import signal
+    send_cmdvel(0.0, 0.0)
+    if _ros_process and _ros_process.poll() is None:
+        try:
+            os.killpg(os.getpgid(_ros_process.pid), signal.SIGINT)
+            try:
+                _ros_process.wait(timeout=5)
+                msg = "Stopped gracefully (Ctrl+C)"
+            except subprocess.TimeoutExpired:
+                os.killpg(os.getpgid(_ros_process.pid), signal.SIGKILL)
+                msg = "Forced stop after timeout"
+        except Exception as e:
+            msg = f"Error: {e}"
+        _ros_process = None
+    else:
+        msg = "Nothing was running"
+    subprocess.run(['bash', '-c',
+        'pkill -9 -f arduino_bridge; pkill -9 -f sllidar_node; '
+        'pkill -9 -f async_slam_toolbox_node; pkill -9 -f scan_filter; '
+        'pkill -9 -f bt_navigator; pkill -9 -f controller_server; '
+        'pkill -9 -f planner_server; pkill -9 -f amcl; pkill -9 -f map_server; '
+        'pkill -9 -f smoother_server; pkill -9 -f behavior_server; '
+        'pkill -9 -f waypoint_follower; pkill -9 -f velocity_smoother'])
+    with _lock:
+        _state['ros_running'] = False
+        _state['robot_status'] = 'idle'
+    return jsonify({"message": msg})
 
 
 @app.route('/launch_log')
