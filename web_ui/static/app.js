@@ -33,6 +33,7 @@ function switchTab(tab, el){
   document.getElementById('panelExhibit').classList.toggle('active', tab==='exhibit');
   document.getElementById('panelRemote').classList.toggle('active',  tab==='remote');
   document.getElementById('panelGoals').classList.toggle('active',   tab==='goals');
+  document.getElementById('panelTerminal').classList.toggle('active', tab==='terminal');
   if(tab==='goals') renderGoals();
 }
 
@@ -264,13 +265,6 @@ async function pollLog(){
 setInterval(pollLog, 2000);
 
 // ── Terminal Tab ───────────────────────────────────────────────────────────
-const _origSwitchTab = switchTab;
-function switchTab(tab, el){
-  _origSwitchTab(tab, el);
-  const t = document.getElementById('panelTerminal');
-  if(t) t.classList.toggle('active', tab==='terminal');
-}
-
 async function quickCmd(cmd){ await runCmd(cmd); }
 async function runTypedCmd(){
   const input = document.getElementById('cmdInput');
