@@ -24,6 +24,7 @@
   <div class="tab active" onclick="switchTab('exhibit',this)">🏺 Exhibit</div>
   <div class="tab"        onclick="switchTab('remote',this)">🕹️ Remote</div>
   <div class="tab"        onclick="switchTab('goals',this)">📍 Nav Goals</div>
+  <div class="tab"        onclick="switchTab('terminal',this)">🖥️ Terminal</div>
 </div>
 
 <div class="body">
@@ -145,6 +146,22 @@
       Coordinates are saved automatically.
     </div>
     <div id="goalsList"></div>
+  </div>
+
+  <!-- TERMINAL PANEL -->
+  <div class="goals-panel" id="panelTerminal">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="quickCmd('pkill -9 -f arduino_bridge; pkill -9 -f sllidar_node; pkill -9 -f async_slam_toolbox_node; pkill -9 -f scan_filter; pkill -9 -f bt_navigator; pkill -9 -f controller_server; pkill -9 -f planner_server; pkill -9 -f amcl; pkill -9 -f map_server; pkill -9 -f smoother_server; pkill -9 -f behavior_server; pkill -9 -f waypoint_follower; pkill -9 -f velocity_smoother; echo done')">🔴 Kill All ROS</button>
+      <button onclick="quickCmd('python3 ~/new_ros2/src/museum_robot/scripts/reset_lidar.py; echo done')">🔄 Reset LiDAR</button>
+      <button onclick="quickCmd('ros2 topic list')">📋 ROS Topic List</button>
+      <button onclick="quickCmd('pgrep -fa \"arduino_bridge|sllidar|nav2|slam\" || echo CLEAN')">📊 Check Status</button>
+      <button onclick="quickCmd('ls -lh ~/maps/')">🗺️ List Maps</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <input id="cmdInput" type="text" placeholder="Type any command..." style="flex:1;padding:8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-family:monospace;">
+      <button onclick="runTypedCmd()">Run</button>
+    </div>
+    <div id="terminalOutput" style="flex:1;overflow-y:auto;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:0.78rem;color:#c9d1d9;white-space:pre-wrap;word-break:break-all;margin-top:10px;min-height:200px;"></div>
   </div>
 
 </div>

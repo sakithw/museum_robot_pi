@@ -262,3 +262,37 @@ async function pollLog(){
 }
 
 setInterval(pollLog, 2000);
+
+// ── Terminal Tab ───────────────────────────────────────────────────────────
+const _origSwitchTab = switchTab;
+function switchTab(tab, el){
+  _origSwitchTab(tab, el);
+  const t = document.getElementById('panelTerminal');
+  if(t) t.classList.toggle('active', tab==='terminal');
+}
+
+async function quickCmd(cmd){ await runCmd(cmd); }
+async function runTypedCmd(){
+  const input = document.getElementById('cmdInput');
+  const cmd = input.value.trim();
+  if(!cmd) return;
+  await runCmd(cmd);
+  input.value = '';
+}
+async function runCmd(cmd){
+  const out = document.getElementById('terminalOutput');
+  out.textContent += '\n$ ' + cmd + '\n';
+  out.scrollTop = out.scrollHeight;
+  try{
+    const r = await fetch('/run_command', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cmd: cmd})
+    });
+    const d = await r.json();
+    out.textContent += (d.output || d.error || '(no output)') + '\n';
+    out.scrollTop = out.scrollHeight;
+  } catch(e){
+    out.textContent += 'Error: ' + e.message + '\n';
+  }
+}
