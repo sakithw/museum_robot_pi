@@ -323,6 +323,19 @@ def run_command():
         return jsonify({"error": str(e)}), 500
 
 
+def _run_logged(cmd, tag):
+    with _log_lock:
+        _log_lines.append(f'[{tag}] Starting...')
+    proc = subprocess.Popen(['bash', '-c', cmd],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, bufsize=1)
+    for line in proc.stdout:
+        with _log_lock:
+            _log_lines.append(f'[{tag}] {line.rstrip()}')
+    proc.wait()
+    with _log_lock:
+        _log_lines.append(f'[{tag}] Done (exit code {proc.returncode})')
+
 @app.route('/save_map', methods=['POST'])
 def save_map():
     cmd = ('source /opt/ros/humble/setup.bash && '
@@ -334,8 +347,8 @@ def save_map():
            'ros2 run nav2_map_server map_saver_cli '
            '-f ~/maps/museum_map -t /map '
            '--ros-args -p save_map_timeout:=10.0')
-    subprocess.Popen(['bash', '-c', cmd])
-    return jsonify({"message": "Saving… check ~/maps/ shortly"})
+    threading.Thread(target=_run_logged, args=(cmd, 'save_map'), daemon=True).start()
+    return jsonify({"message": "Saving… check ROS Log tab"})
 
 
 _MAPPING_MAX_LX = 0.15   # m/s max during manual mapping (slow and careful)
