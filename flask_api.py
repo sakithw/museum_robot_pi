@@ -351,6 +351,14 @@ def save_map():
     return jsonify({"message": "Saving… check ROS Log tab"})
 
 
+@app.route('/delete_map', methods=['POST'])
+def delete_map():
+    cmd = ('rm -fv ~/maps/museum_map.pgm ~/maps/museum_map.yaml '
+           '~/maps/museum_map.posegraph ~/maps/museum_map.data')
+    threading.Thread(target=_run_logged, args=(cmd, 'delete_map'), daemon=True).start()
+    return jsonify({"message": "Deleting map files… check ROS Log tab"})
+
+
 _MAPPING_MAX_LX = 0.15   # m/s max during manual mapping (slow and careful)
 _MAPPING_MAX_AZ = 0.40   # rad/s max during manual mapping
 _NAV_MAX_LX     = 0.25   # m/s max during manual driving in navigation mode
@@ -459,8 +467,8 @@ def optimize_map():
            'export ROS_DOMAIN_ID=10 && '
            'ros2 service call /slam_toolbox/optimize_poses '
            'slam_toolbox/srv/TriggerService')
-    subprocess.Popen(['bash', '-c', cmd])
-    return jsonify({"message": "Optimizing pose graph… wait 5 s then save map"})
+    threading.Thread(target=_run_logged, args=(cmd, 'optimize_map'), daemon=True).start()
+    return jsonify({"message": "Optimizing… wait then Save Map. Check ROS Log tab"})
 
 
 @app.route('/exhibit/<int:tag_id>')
