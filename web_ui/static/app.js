@@ -436,6 +436,9 @@ async function runTypedCmd(){
   await runCmd(cmd);
   input.value = '';
 }
+function clearTerminal(){
+  document.getElementById('terminalOutput').textContent = '';
+}
 async function runCmd(cmd){
   const out = document.getElementById('terminalOutput');
   out.textContent += '\n$ ' + cmd + '\n';
