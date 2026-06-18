@@ -96,6 +96,14 @@ async function optimizeMap(){
   const d = await r.json();
   toast(d.message||'Done!','#10b981');
 }
+async function deleteMap(){
+  const confirmed = confirm('Delete the current map permanently? This cannot be undone. Make sure you have saved any map you want to keep.');
+  if(!confirmed) return;
+  toast('Deleting map…','#dc2626');
+  const r = await fetch('/delete_map',{method:'POST'});
+  const d = await r.json();
+  toast(d.message||'Deleted!','#dc2626');
+}
 
 // ── Drive ──────────────────────────────────────────────────────────────────
 // Travel speed: 0–50% of max (slider 1)
