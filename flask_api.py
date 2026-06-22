@@ -15,6 +15,13 @@ app = Flask(__name__,
 
 from exhibits import EXHIBITS
 
+import subprocess as _sp
+try:
+    from descriptions import DESCRIPTIONS as _DESCRIPTIONS
+except ImportError:
+    _DESCRIPTIONS = {i: {'en':'','si':'','ta':''} for i in range(6)}
+_desc_lock = threading.Lock()
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -418,6 +425,50 @@ def list_goals():
     return jsonify({"goals": goals})
 
 
+@app.route('/list_descriptions')
+def list_descriptions():
+    with _desc_lock:
+        return jsonify({"descriptions": dict(_DESCRIPTIONS)})
+
+@app.route('/save_descriptions', methods=['POST'])
+def save_descriptions():
+    data = request.get_json(silent=True) or {}
+    descs = data.get('descriptions', {})
+    with _desc_lock:
+        for tid_str, langs in descs.items():
+            tid = int(tid_str)
+            if tid in _DESCRIPTIONS:
+                for lang in ('en', 'si', 'ta'):
+                    if lang in langs:
+                        _DESCRIPTIONS[tid][lang] = langs[lang]
+        path = os.path.join(os.path.dirname(__file__), 'descriptions.py')
+        with open(path, 'w') as f:
+            f.write('# Auto-saved exhibit descriptions — edit via webapp\n')
+            f.write(f'DESCRIPTIONS = {_DESCRIPTIONS!r}\n')
+    return jsonify({"status": "saved"})
+
+
+@app.route('/speak/<int:tag_id>', methods=['POST'])
+def speak(tag_id):
+    with _lock:
+        lang = _state.get('language', 'en')
+    with _desc_lock:
+        desc = _DESCRIPTIONS.get(tag_id, {}).get(lang, '')
+    if not desc.strip():
+        return jsonify({"status": "no_text"})
+    try:
+        from gtts import gTTS
+        mp3_path = f'/tmp/exhibit_{tag_id}_{lang}.mp3'
+        tts = gTTS(text=desc, lang=lang)
+        tts.save(mp3_path)
+        subprocess.Popen(['mpg123', '-q', mp3_path])
+        with _lock:
+            _state['robot_status'] = 'speaking'
+        return jsonify({"status": "speaking"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 _nav_target_lock = threading.Lock()
 _nav_target = {"tag_id": None, "status": "idle"}
 
@@ -439,6 +490,12 @@ def _run_nav_goal(tag_id, x, y, yaw):
     result = sp.run(['bash', '-c', cmd], capture_output=True, text=True, timeout=120)
     with _nav_target_lock:
         _nav_target["status"] = "reached" if "Goal finished" in result.stdout else "failed"
+        if _nav_target["status"] == "reached":
+            import requests as _req
+            try:
+                _req.post(f'http://localhost:5000/speak/{tag_id}', verify=False, timeout=2)
+            except Exception:
+                pass
 
 @app.route('/navigate_to/<int:tag_id>', methods=['POST'])
 def navigate_to(tag_id):
