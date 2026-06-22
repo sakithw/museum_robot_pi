@@ -472,6 +472,26 @@ def speak(tag_id):
 _nav_target_lock = threading.Lock()
 _nav_target = {"tag_id": None, "status": "idle"}
 
+def _do_speak(tag_id):
+    with _lock:
+        lang = _state.get('language', 'en')
+    with _desc_lock:
+        desc = _DESCRIPTIONS.get(tag_id, {}).get(lang, '')
+    if not desc.strip():
+        return
+    try:
+        from gtts import gTTS
+        mp3_path = f'/tmp/exhibit_{tag_id}_{lang}.mp3'
+        tts = gTTS(text=desc, lang=lang)
+        tts.save(mp3_path)
+        with _lock:
+            _state['robot_status'] = 'speaking'
+        subprocess.run(['mpg123', '-q', mp3_path])
+        with _lock:
+            _state['robot_status'] = 'idle'
+    except Exception as e:
+        print(f'[TTS] Error: {e}')
+
 def _run_nav_goal(tag_id, x, y, yaw):
     import math, subprocess as sp
     qz = math.sin(yaw / 2.0)
@@ -491,11 +511,7 @@ def _run_nav_goal(tag_id, x, y, yaw):
     with _nav_target_lock:
         _nav_target["status"] = "reached" if "Goal finished" in result.stdout else "failed"
         if _nav_target["status"] == "reached":
-            import requests as _req
-            try:
-                _req.post(f'http://localhost:5000/speak/{tag_id}', verify=False, timeout=2)
-            except Exception:
-                pass
+            threading.Thread(target=_do_speak, args=(tag_id,), daemon=True).start()
 
 @app.route('/navigate_to/<int:tag_id>', methods=['POST'])
 def navigate_to(tag_id):
