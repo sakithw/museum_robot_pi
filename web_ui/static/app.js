@@ -177,6 +177,34 @@ async function loadGoals(){
   renderGoals();
 }
 
+async function loadDescriptions(){
+  try{
+    const d = await (await fetch('/list_descriptions')).json();
+    window._descriptions = d.descriptions || {};
+  } catch(e){ window._descriptions = {}; }
+}
+
+async function saveDescriptions(){
+  const descs = {};
+  for(let i=0;i<=5;i++){
+    descs[i] = {
+      en: document.getElementById(`desc_en_${i}`)?.value || '',
+      si: document.getElementById(`desc_si_${i}`)?.value || '',
+      ta: document.getElementById(`desc_ta_${i}`)?.value || ''
+    };
+  }
+  try{
+    const r = await fetch('/save_descriptions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({descriptions: descs})
+    });
+    const d = await r.json();
+    if(d.status==='saved') toast('✅ Descriptions saved!','#10b981');
+    else toast('Error saving','#ef4444');
+  } catch(e){ toast('Network error','#ef4444'); }
+}
+
 function renderGoals(){
   const list = document.getElementById('goalsList');
   list.innerHTML = '';
@@ -195,6 +223,11 @@ function renderGoals(){
           ${g ? '✅ Update' : '📍 Mark Here'}
         </button>
         ${g ? `<button class="mark-btn" onclick="goToExhibit(${i})">▶ Go</button>` : ''}
+      </div>
+      <div style="width:100%;margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+        <input id="desc_en_${i}" placeholder="English description..." style="width:100%;padding:6px 8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:0.76rem;" value="${(window._descriptions?.[i]?.en||'').replace(/"/g,'&quot;')}">
+        <input id="desc_si_${i}" placeholder="සිංහල විස්තරය..." style="width:100%;padding:6px 8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:0.76rem;" value="${(window._descriptions?.[i]?.si||'').replace(/"/g,'&quot;')}">
+        <input id="desc_ta_${i}" placeholder="தமிழ் விளக்கம்..." style="width:100%;padding:6px 8px;background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;font-size:0.76rem;" value="${(window._descriptions?.[i]?.ta||'').replace(/"/g,'&quot;')}">
       </div>`;
   }
 }
@@ -311,7 +344,7 @@ async function pollStatus(){
 
 setInterval(pollStatus, 1000);
 pollStatus();
-loadGoals();
+loadDescriptions().then(()=>loadGoals());
 setMode('navigation');
 renderGoals();
 
