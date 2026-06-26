@@ -8,6 +8,8 @@ arduino_bridge owns serial exclusively — no conflicts.
 from flask import Flask, request, jsonify, render_template_string, render_template
 import threading, subprocess, time, os
 
+SPEECH_SPEED = 1.3  # ffmpeg atempo speed multiplier (1.0 = normal, 1.3 = 30% faster)
+
 _web_ui_dir = os.path.join(os.path.dirname(__file__), 'web_ui')
 app = Flask(__name__,
             template_folder=os.path.join(_web_ui_dir, 'templates'),
@@ -458,9 +460,15 @@ def speak(tag_id):
         return jsonify({"status": "no_text"})
     try:
         from gtts import gTTS
-        mp3_path = f'/tmp/exhibit_{tag_id}_{lang}.mp3'
+        raw_path   = f'/tmp/exhibit_{tag_id}_{lang}_raw.mp3'
+        final_path = f'/tmp/exhibit_{tag_id}_{lang}.mp3'
         tts = gTTS(text=desc, lang=lang)
-        tts.save(mp3_path)
+        tts.save(raw_path)
+        ff = subprocess.run(
+            ['ffmpeg', '-y', '-i', raw_path,
+             '-filter:a', f'atempo={SPEECH_SPEED}', '-vn', final_path],
+            capture_output=True)
+        mp3_path = final_path if ff.returncode == 0 else raw_path
         subprocess.Popen(['mpg123', '-q', mp3_path])
         with _lock:
             _state['robot_status'] = 'speaking'
@@ -481,9 +489,15 @@ def _do_speak(tag_id):
         return
     try:
         from gtts import gTTS
-        mp3_path = f'/tmp/exhibit_{tag_id}_{lang}.mp3'
+        raw_path   = f'/tmp/exhibit_{tag_id}_{lang}_raw.mp3'
+        final_path = f'/tmp/exhibit_{tag_id}_{lang}.mp3'
         tts = gTTS(text=desc, lang=lang)
-        tts.save(mp3_path)
+        tts.save(raw_path)
+        ff = subprocess.run(
+            ['ffmpeg', '-y', '-i', raw_path,
+             '-filter:a', f'atempo={SPEECH_SPEED}', '-vn', final_path],
+            capture_output=True)
+        mp3_path = final_path if ff.returncode == 0 else raw_path
         with _lock:
             _state['robot_status'] = 'speaking'
         subprocess.run(['mpg123', '-q', mp3_path])
